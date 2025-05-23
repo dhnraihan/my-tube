@@ -40,7 +40,7 @@ const SearchPage: React.FC = () => {
     } else if (sortBy === 'views') {
       results.sort((a, b) => b.views - a.views);
     } else if (sortBy === 'rating') {
-      results.sort((a, b) => (b.likes_count - b.dislikes_count) - (a.likes_count - a.dislikes_count));
+      results.sort((a, b) => b.likes - a.likes);
     }
     
     setFilteredResults(results);

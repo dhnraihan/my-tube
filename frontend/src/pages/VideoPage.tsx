@@ -53,25 +53,26 @@ const VideoPage: React.FC = () => {
   };
   
   const handleLike = (likeType: 'like' | 'dislike') => {
-    if (isAuthenticated && currentVideo) {
-      dispatch(likeVideo({ videoId: currentVideo.id, likeType }) as any);
+    if (isAuthenticated && currentVideo && slug) {
+      // likeVideo expects a slug string parameter
+      dispatch(likeVideo(slug) as any);
     }
   };
   
   const handleComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isAuthenticated && currentVideo && comment.trim()) {
-      dispatch(addComment({ videoId: currentVideo.id, text: comment }) as any);
+    if (isAuthenticated && currentVideo && comment.trim() && slug) {
+      dispatch(addComment({ slug, content: comment }) as any);
       setComment('');
     }
   };
   
   const handleReply = (commentId: number) => {
-    if (isAuthenticated && currentVideo && replyText.trim()) {
+    if (isAuthenticated && currentVideo && replyText.trim() && slug) {
       dispatch(addComment({ 
-        videoId: currentVideo.id, 
-        text: replyText,
-        parentId: commentId 
+        slug, 
+        content: replyText,
+        parent_id: commentId 
       }) as any);
       setReplyText('');
       setReplyingTo(null);
@@ -92,7 +93,7 @@ const VideoPage: React.FC = () => {
               <h4 className="font-medium text-gray-900 dark:text-white mr-2">{comment.user.username}</h4>
               <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(comment.created_at)}</span>
             </div>
-            <p className="text-gray-700 dark:text-gray-300 mb-2">{comment.text}</p>
+            <p className="text-gray-700 dark:text-gray-300 mb-2">{comment.content}</p>
             
             {isAuthenticated && (
               <button 
@@ -145,7 +146,7 @@ const VideoPage: React.FC = () => {
                           <h5 className="font-medium text-gray-900 dark:text-white mr-2">{reply.user.username}</h5>
                           <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(reply.created_at)}</span>
                         </div>
-                        <p className="text-gray-700 dark:text-gray-300">{reply.text}</p>
+                        <p className="text-gray-700 dark:text-gray-300">{reply.content}</p>
                       </div>
                     </div>
                   </div>
@@ -224,7 +225,7 @@ const VideoPage: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                 </svg>
-                <span>{currentVideo.likes_count}</span>
+                <span>{currentVideo.likes}</span>
               </button>
               
               <button 
@@ -235,7 +236,7 @@ const VideoPage: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
                 </svg>
-                <span>{currentVideo.dislikes_count}</span>
+                <span>{0}</span>
               </button>
               
               <button className="flex items-center space-x-1 hover:text-blue-600 dark:hover:text-blue-400">
@@ -260,7 +261,7 @@ const VideoPage: React.FC = () => {
                 </p>
               )}
             </div>
-            {isAuthenticated && currentVideo.uploader.id !== user?.id && (
+            {isAuthenticated && currentVideo.uploader.id.toString() !== user?.id && (
               <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md">
                 Subscribe
               </button>
@@ -293,7 +294,7 @@ const VideoPage: React.FC = () => {
         {/* Comments */}
         <div className="mt-8">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            {currentVideo.comments_count} Comments
+            {comments.length} Comments
           </h2>
           
           {/* Add comment */}

@@ -13,7 +13,7 @@ const ProfilePage: React.FC = () => {
   const { videos, isLoading } = useSelector((state: RootState) => state.videos);
   
   // Filter user's videos
-  const userVideos = videos.filter(video => video.uploader.id === user?.id);
+  const userVideos = videos.filter(video => video.uploader.id.toString() === user?.id);
   
   useEffect(() => {
     dispatch(getUserProfile() as any);

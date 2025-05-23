@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../../utils/api'; // Import the configured axios instance
 
-// Types
+// Types (keeping the same as before)
 interface User {
   id: string;
   username: string;
@@ -48,15 +48,12 @@ const initialState: AuthState = {
   error: null,
 };
 
-// Async thunks
+// Async thunks - Updated to use configured API instance
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
-      const response = await axios.post<LoginResponse>(
-        '/api/token/',
-        credentials
-      );
+      const response = await api.post<LoginResponse>('/api/token/', credentials);
       localStorage.setItem('token', response.data.access);
       localStorage.setItem('refresh', response.data.refresh);
       return response.data;
@@ -73,7 +70,7 @@ export const register = createAsyncThunk(
   'auth/register',
   async (credentials: RegisterCredentials, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/register/', credentials);
+      const response = await api.post('/api/register/', credentials);
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -86,18 +83,11 @@ export const register = createAsyncThunk(
 
 export const getUserProfile = createAsyncThunk(
   'auth/getUserProfile',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      const response = await axios.get('/api/profile/', config);
+      // No need to manually add Authorization header, 
+      // it's handled by the axios interceptor
+      const response = await api.get('/api/profile/');
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -108,7 +98,31 @@ export const getUserProfile = createAsyncThunk(
   }
 );
 
-// Slice
+// Token refresh function
+export const refreshToken = createAsyncThunk(
+  'auth/refreshToken',
+  async (_, { rejectWithValue }) => {
+    try {
+      const refresh = localStorage.getItem('refresh');
+      if (!refresh) {
+        throw new Error('No refresh token available');
+      }
+      
+      const response = await api.post('/api/token/refresh/', { refresh });
+      localStorage.setItem('token', response.data.access);
+      return response.data.access;
+    } catch (error: any) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh');
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Token refresh failed');
+    }
+  }
+);
+
+// Slice (keeping the same as before)
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -162,6 +176,15 @@ const authSlice = createSlice({
       .addCase(getUserProfile.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+      })
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.token = action.payload;
+        state.isAuthenticated = true;
+      })
+      .addCase(refreshToken.rejected, (state) => {
+        state.token = null;
+        state.isAuthenticated = false;
+        state.user = null;
       });
   },
 });

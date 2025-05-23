@@ -1,89 +1,69 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../../utils/api';
 
 // Types
+export interface Comment {
+  id: number;
+  content: string;
+  created_at: string;
+  user: {
+    id: number;
+    username: string;
+    profile_picture: string;
+  };
+  replies?: Comment[];
+}
+
 export interface Video {
-  id: string;
+  id: number;
   title: string;
   description: string;
   file: string;
   thumbnail: string;
+  views: number;
+  likes: number;
+  slug: string;
+  duration: number;
+  created_at: string;
   uploader: {
-    id: string;
+    id: number;
     username: string;
-    email: string;
+    profile_picture: string;
   };
   category: {
     id: number;
     name: string;
     slug: string;
-  } | null;
-  privacy: 'public' | 'private' | 'unlisted';
-  views: number;
-  slug: string;
-  duration: number;
-  created_at: string;
-  updated_at: string;
-  tags: string;
-  likes_count: number;
-  dislikes_count: number;
-  comments_count: number;
-}
-
-export interface Comment {
-  id: number;
-  video: string;
-  user: {
-    id: string;
-    username: string;
-    email: string;
   };
-  parent: number | null;
-  text: string;
-  created_at: string;
-  updated_at: string;
-  replies: Comment[];
+  tags: string;
+  is_liked?: boolean;
 }
 
 export interface Category {
   id: number;
   name: string;
   slug: string;
-  description: string;
-  created_at: string;
+  icon?: string;
 }
 
 interface VideoState {
   videos: Video[];
   featuredVideos: Video[];
-  relatedVideos: Video[];
   currentVideo: Video | null;
+  relatedVideos: Video[];
+  searchResults: Video[];
   comments: Comment[];
   categories: Category[];
-  searchResults: Video[];
   isLoading: boolean;
   error: string | null;
 }
-
-// Initial state
-const initialState: VideoState = {
-  videos: [],
-  featuredVideos: [],
-  relatedVideos: [],
-  currentVideo: null,
-  comments: [],
-  categories: [],
-  searchResults: [],
-  isLoading: false,
-  error: null,
-};
 
 // Async thunks
 export const fetchVideos = createAsyncThunk(
   'videos/fetchVideos',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/videos/');
+      const response = await api.get('/api/videos/');
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -98,8 +78,8 @@ export const fetchFeaturedVideos = createAsyncThunk(
   'videos/fetchFeaturedVideos',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/videos/?ordering=-views');
-      return response.data.results.slice(0, 5);
+      const response = await api.get('/api/videos/featured/');
+      return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
         return rejectWithValue(error.response.data);
@@ -113,9 +93,9 @@ export const fetchVideoById = createAsyncThunk(
   'videos/fetchVideoById',
   async (slug: string, { rejectWithValue, dispatch }) => {
     try {
-      const response = await axios.get(`/api/videos/${slug}/`);
+      const response = await api.get(`/api/videos/${slug}/`);
       // Record view
-      await axios.post(`/api/videos/${slug}/view/`);
+      await api.post(`/api/videos/${slug}/view/`);
       // Fetch related videos
       dispatch(fetchRelatedVideos(slug));
       // Fetch comments
@@ -134,7 +114,7 @@ export const fetchRelatedVideos = createAsyncThunk(
   'videos/fetchRelatedVideos',
   async (slug: string, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/videos/${slug}/related/`);
+      const response = await api.get(`/api/videos/${slug}/related/`);
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -149,7 +129,7 @@ export const fetchComments = createAsyncThunk(
   'videos/fetchComments',
   async (slug: string, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/videos/${slug}/comments/`);
+      const response = await api.get(`/api/videos/${slug}/comments/`);
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -160,11 +140,62 @@ export const fetchComments = createAsyncThunk(
   }
 );
 
+export const uploadVideo = createAsyncThunk(
+  'videos/uploadVideo',
+  async (formData: FormData, { rejectWithValue }) => {
+    try {
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      };
+      
+      const response = await api.post('/api/videos/', formData, config);
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to upload video');
+    }
+  }
+);
+
+export const likeVideo = createAsyncThunk(
+  'videos/likeVideo',
+  async (slug: string, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/api/videos/${slug}/like/`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to like video');
+    }
+  }
+);
+
+export const addComment = createAsyncThunk(
+  'videos/addComment',
+  async ({ slug, content, parent_id = null }: { slug: string; content: string; parent_id?: number | null }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/api/videos/${slug}/comments/`, { content, parent_id });
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to add comment');
+    }
+  }
+);
+
 export const fetchCategories = createAsyncThunk(
   'videos/fetchCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/categories/');
+      const response = await api.get('/api/categories/');
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -179,7 +210,7 @@ export const searchVideos = createAsyncThunk(
   'videos/searchVideos',
   async (query: string, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/search/?q=${query}`);
+      const response = await api.get(`/api/videos/search/?q=${query}`);
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -190,118 +221,50 @@ export const searchVideos = createAsyncThunk(
   }
 );
 
-export const uploadVideo = createAsyncThunk(
-  'videos/uploadVideo',
-  async (formData: FormData, { rejectWithValue, getState }) => {
-    try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      const response = await axios.post('/api/videos/', formData, config);
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
-      }
-      return rejectWithValue('Failed to upload video');
-    }
-  }
-);
+// Initial state
+const initialState: VideoState = {
+  videos: [],
+  featuredVideos: [],
+  currentVideo: null,
+  relatedVideos: [],
+  searchResults: [],
+  comments: [],
+  categories: [],
+  isLoading: false,
+  error: null,
+};
 
-export const likeVideo = createAsyncThunk(
-  'videos/likeVideo',
-  async ({ videoId, likeType }: { videoId: string; likeType: 'like' | 'dislike' }, { rejectWithValue, getState }) => {
-    try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      const response = await axios.post('/api/like/', { video: videoId, like_type: likeType }, config);
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
-      }
-      return rejectWithValue('Failed to like video');
-    }
-  }
-);
-
-export const addComment = createAsyncThunk(
-  'videos/addComment',
-  async (
-    { videoId, text, parentId }: { videoId: string; text: string; parentId?: number },
-    { rejectWithValue, getState }
-  ) => {
-    try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      const data = {
-        video: videoId,
-        text,
-        parent: parentId || null,
-      };
-      
-      const response = await axios.post('/api/comments/', data, config);
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
-      }
-      return rejectWithValue('Failed to add comment');
-    }
-  }
-);
-
-// Slice
+// Create the slice
 const videoSlice = createSlice({
   name: 'videos',
   initialState,
   reducers: {
-    clearCurrentVideo: (state) => {
+    clearVideoState: (state) => {
       state.currentVideo = null;
       state.relatedVideos = [];
       state.comments = [];
     },
-    clearError: (state) => {
-      state.error = null;
+    clearSearchResults: (state) => {
+      state.searchResults = [];
     },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch videos
+      // Fetch Videos
       .addCase(fetchVideos.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(fetchVideos.fulfilled, (state, action: PayloadAction<{ results: Video[] }>) => {
+      .addCase(fetchVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        state.videos = action.payload.results;
+        state.videos = action.payload;
       })
       .addCase(fetchVideos.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // Fetch featured videos
+      
+      // Fetch Featured Videos
       .addCase(fetchFeaturedVideos.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -314,7 +277,8 @@ const videoSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // Fetch video by ID
+      
+      // Fetch Video By ID
       .addCase(fetchVideoById.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -327,15 +291,58 @@ const videoSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // Fetch related videos
+      
+      // Fetch Related Videos
       .addCase(fetchRelatedVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.relatedVideos = action.payload;
       })
-      // Fetch comments
+      
+      // Fetch Comments
       .addCase(fetchComments.fulfilled, (state, action: PayloadAction<Comment[]>) => {
         state.comments = action.payload;
       })
-      // Fetch categories
+      
+      // Upload Video
+      .addCase(uploadVideo.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(uploadVideo.fulfilled, (state, action: PayloadAction<Video>) => {
+        state.isLoading = false;
+        state.videos = [action.payload, ...state.videos];
+      })
+      .addCase(uploadVideo.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Like Video
+      .addCase(likeVideo.fulfilled, (state, action: PayloadAction<{ likes: number; is_liked: boolean }>) => {
+        if (state.currentVideo) {
+          state.currentVideo.likes = action.payload.likes;
+          state.currentVideo.is_liked = action.payload.is_liked;
+        }
+      })
+      
+      // Add Comment
+      .addCase(addComment.fulfilled, (state, action: PayloadAction<Comment>) => {
+        const comment = action.payload;
+        if (comment.replies) {
+          // This is a reply to an existing comment
+          const parentIndex = state.comments.findIndex(c => c.id === comment.id);
+          if (parentIndex !== -1) {
+            if (!state.comments[parentIndex].replies) {
+              state.comments[parentIndex].replies = [];
+            }
+            state.comments[parentIndex].replies!.push(comment);
+          }
+        } else {
+          // This is a new top-level comment
+          state.comments = [comment, ...state.comments];
+        }
+      })
+      
+      // Fetch Categories
       .addCase(fetchCategories.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -348,40 +355,22 @@ const videoSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // Search videos
+      
+      // Search Videos
       .addCase(searchVideos.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(searchVideos.fulfilled, (state, action: PayloadAction<{ results: Video[] }>) => {
+      .addCase(searchVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        state.searchResults = action.payload.results;
+        state.searchResults = action.payload;
       })
       .addCase(searchVideos.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
-      })
-      // Add comment
-      .addCase(addComment.fulfilled, (state, action: PayloadAction<Comment>) => {
-        const newComment = action.payload;
-        if (newComment.parent) {
-          // Add reply to parent comment
-          const parentComment = state.comments.find(comment => comment.id === newComment.parent);
-          if (parentComment) {
-            parentComment.replies.push(newComment);
-          }
-        } else {
-          // Add as a new comment
-          state.comments.unshift(newComment);
-        }
-        
-        // Update comment count in current video
-        if (state.currentVideo) {
-          state.currentVideo.comments_count += 1;
-        }
       });
   },
 });
 
-export const { clearCurrentVideo, clearError } = videoSlice.actions;
+export const { clearVideoState, clearSearchResults } = videoSlice.actions;
 export default videoSlice.reducer;

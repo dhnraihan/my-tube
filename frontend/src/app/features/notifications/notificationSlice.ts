@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../../utils/api'; // Import the configured axios instance
 
 // Types
 export interface Notification {
@@ -37,21 +37,14 @@ const initialState: NotificationState = {
   error: null,
 };
 
-// Async thunks
+// Async thunks - Updated to use configured API instance
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchNotifications',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      const response = await axios.get('/api/notifications/', config);
+      // No need to manually add Authorization header, 
+      // it's handled by the axios interceptor
+      const response = await api.get('/api/notifications/');
       return response.data;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -64,18 +57,10 @@ export const fetchNotifications = createAsyncThunk(
 
 export const markAsRead = createAsyncThunk(
   'notifications/markAsRead',
-  async (notificationId: number, { rejectWithValue, getState }) => {
+  async (notificationId: number, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      await axios.post(`/api/notifications/${notificationId}/mark_as_read/`, {}, config);
+      // Authorization header is added automatically by the interceptor
+      await api.post(`/api/notifications/${notificationId}/mark_as_read/`, {});
       return notificationId;
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -88,24 +73,79 @@ export const markAsRead = createAsyncThunk(
 
 export const markAllAsRead = createAsyncThunk(
   'notifications/markAllAsRead',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const token = state.auth.token;
-      
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      
-      await axios.post('/api/notifications/mark_all_as_read/', {}, config);
+      // Authorization header is added automatically by the interceptor
+      await api.post('/api/notifications/mark_all_as_read/', {});
       return true;
     } catch (error: any) {
       if (error.response && error.response.data) {
         return rejectWithValue(error.response.data);
       }
       return rejectWithValue('Failed to mark all notifications as read');
+    }
+  }
+);
+
+// Additional notification-related async thunks
+export const deleteNotification = createAsyncThunk(
+  'notifications/deleteNotification',
+  async (notificationId: number, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/notifications/${notificationId}/`);
+      return notificationId;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to delete notification');
+    }
+  }
+);
+
+export const clearAllNotifications = createAsyncThunk(
+  'notifications/clearAllNotifications',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.delete('/api/notifications/clear_all/');
+      return true;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to clear all notifications');
+    }
+  }
+);
+
+// Get notification settings
+export const getNotificationSettings = createAsyncThunk(
+  'notifications/getNotificationSettings',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/api/notifications/settings/');
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to fetch notification settings');
+    }
+  }
+);
+
+// Update notification settings
+export const updateNotificationSettings = createAsyncThunk(
+  'notifications/updateNotificationSettings',
+  async (settings: any, { rejectWithValue }) => {
+    try {
+      const response = await api.put('/api/notifications/settings/', settings);
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to update notification settings');
     }
   }
 );
@@ -121,7 +161,22 @@ const notificationSlice = createSlice({
         state.unreadCount += 1;
       }
     },
+    removeNotification: (state, action: PayloadAction<number>) => {
+      const index = state.notifications.findIndex(n => n.id === action.payload);
+      if (index !== -1) {
+        const notification = state.notifications[index];
+        if (!notification.is_read) {
+          state.unreadCount -= 1;
+        }
+        state.notifications.splice(index, 1);
+      }
+    },
     clearError: (state) => {
+      state.error = null;
+    },
+    resetNotifications: (state) => {
+      state.notifications = [];
+      state.unreadCount = 0;
       state.error = null;
     },
   },
@@ -142,6 +197,9 @@ const notificationSlice = createSlice({
         state.error = action.payload as string;
       })
       // Mark as read
+      .addCase(markAsRead.pending, (state) => {
+        state.error = null;
+      })
       .addCase(markAsRead.fulfilled, (state, action: PayloadAction<number>) => {
         const notification = state.notifications.find(n => n.id === action.payload);
         if (notification && !notification.is_read) {
@@ -149,15 +207,68 @@ const notificationSlice = createSlice({
           state.unreadCount -= 1;
         }
       })
+      .addCase(markAsRead.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       // Mark all as read
+      .addCase(markAllAsRead.pending, (state) => {
+        state.error = null;
+      })
       .addCase(markAllAsRead.fulfilled, (state) => {
         state.notifications.forEach(notification => {
           notification.is_read = true;
         });
         state.unreadCount = 0;
+      })
+      .addCase(markAllAsRead.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+      // Delete notification
+      .addCase(deleteNotification.fulfilled, (state, action: PayloadAction<number>) => {
+        const index = state.notifications.findIndex(n => n.id === action.payload);
+        if (index !== -1) {
+          const notification = state.notifications[index];
+          if (!notification.is_read) {
+            state.unreadCount -= 1;
+          }
+          state.notifications.splice(index, 1);
+        }
+      })
+      .addCase(deleteNotification.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+      // Clear all notifications
+      .addCase(clearAllNotifications.fulfilled, (state) => {
+        state.notifications = [];
+        state.unreadCount = 0;
+      })
+      .addCase(clearAllNotifications.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+      // Get notification settings
+      .addCase(getNotificationSettings.fulfilled, (state, action) => {
+        // You can add a settings field to the state if needed
+        // state.settings = action.payload;
+      })
+      .addCase(getNotificationSettings.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+      // Update notification settings
+      .addCase(updateNotificationSettings.fulfilled, (state, action) => {
+        // Handle settings update success
+        // state.settings = action.payload;
+      })
+      .addCase(updateNotificationSettings.rejected, (state, action) => {
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { addNotification, clearError } = notificationSlice.actions;
+export const { 
+  addNotification, 
+  removeNotification, 
+  clearError, 
+  resetNotifications 
+} = notificationSlice.actions;
+
 export default notificationSlice.reducer;
