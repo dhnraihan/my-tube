@@ -95,8 +95,8 @@ const ProfilePage: React.FC = () => {
             <div className="text-gray-600 dark:text-gray-400 mb-4">
               <p className="mb-1">{user.first_name} {user.last_name}</p>
               <p className="mb-1">{user.email}</p>
-              {user.profile?.bio && (
-                <p className="mt-3">{user.profile.bio}</p>
+              {false && (
+                <p className="mt-3">No bio available</p>
               )}
             </div>
             
@@ -227,21 +227,21 @@ const ProfilePage: React.FC = () => {
             <div className="mb-6">
               <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Bio</h4>
               <p className="text-gray-600 dark:text-gray-400">
-                {user.profile?.bio || 'No bio provided.'}
+                {'No bio provided.'}
               </p>
             </div>
             
             <div className="mb-6">
               <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Location</h4>
               <p className="text-gray-600 dark:text-gray-400">
-                {user.profile?.location || 'Not specified'}
+                {'Not specified'}
               </p>
             </div>
             
             <div>
               <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Joined</h4>
               <p className="text-gray-600 dark:text-gray-400">
-                {user.date_joined ? formatDate(user.date_joined) : 'Unknown'}
+                {'Unknown'}
               </p>
             </div>
           </div>

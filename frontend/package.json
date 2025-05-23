@@ -6,10 +6,14 @@
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@reduxjs/toolkit": "^2.8.2",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/typography": "^0.5.16",
     "@types/react": "^18.3.22",
     "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.4.21",
     "axios": "^1.9.0",
     "daisyui": "^5.0.37",
+    "postcss": "^8.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.56.4",
@@ -17,7 +21,8 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.0",
     "react-scripts": "^5.0.1",
-    "tailwindcss": "^4.1.7"
+    "tailwindcss": "^3.3.0",
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -42,10 +47,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.7",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.3"
   }
 }
