@@ -5,7 +5,10 @@ import { RootState } from '../../app/store';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { categories } = useSelector((state: RootState) => state.videos);
+  const { categories: categoriesData } = useSelector((state: RootState) => state.videos);
+  
+  // Ensure categories is always an array
+  const categories = Array.isArray(categoriesData) ? categoriesData : [];
   
   // Main navigation items
   const navItems = [

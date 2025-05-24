@@ -34,14 +34,19 @@ function App() {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   
   useEffect(() => {
-    // Fetch categories for filtering videos
-    dispatch(fetchCategories() as any);
-    
     // If user is authenticated, fetch user profile data
     if (isAuthenticated) {
       dispatch(getUserProfile() as any);
+      // Fetch categories after authentication is confirmed
+      dispatch(fetchCategories() as any);
     }
   }, [dispatch, isAuthenticated]);
+  
+  // Attempt to fetch categories even for non-authenticated users
+  // This will either succeed if the endpoint is public or fail silently
+  useEffect(() => {
+    dispatch(fetchCategories() as any);
+  }, [dispatch]);
   
   return (
     <Routes>

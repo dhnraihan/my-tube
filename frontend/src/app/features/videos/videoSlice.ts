@@ -198,6 +198,12 @@ export const fetchCategories = createAsyncThunk(
       const response = await api.get('/api/categories/');
       return response.data;
     } catch (error: any) {
+      // If it's an auth error (401), handle it silently without redirecting
+      if (error.response?.status === 401) {
+        console.warn('Categories endpoint requires authentication');
+        return rejectWithValue('Authentication required for categories');
+      }
+      
       if (error.response && error.response.data) {
         return rejectWithValue(error.response.data);
       }
@@ -257,11 +263,14 @@ const videoSlice = createSlice({
       })
       .addCase(fetchVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        state.videos = action.payload;
+        // Ensure videos is always an array
+        state.videos = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchVideos.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+        // Set videos to an empty array when the API call fails
+        state.videos = [];
       })
       
       // Fetch Featured Videos
@@ -271,11 +280,14 @@ const videoSlice = createSlice({
       })
       .addCase(fetchFeaturedVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        state.featuredVideos = action.payload;
+        // Ensure featuredVideos is always an array
+        state.featuredVideos = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchFeaturedVideos.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+        // Set featuredVideos to an empty array when the API call fails
+        state.featuredVideos = [];
       })
       
       // Fetch Video By ID
@@ -349,10 +361,13 @@ const videoSlice = createSlice({
       })
       .addCase(fetchCategories.fulfilled, (state, action: PayloadAction<Category[]>) => {
         state.isLoading = false;
-        state.categories = action.payload;
+        // Ensure categories is always an array
+        state.categories = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.isLoading = false;
+        // Set categories to an empty array when the API call fails
+        state.categories = [];
         state.error = action.payload as string;
       })
       

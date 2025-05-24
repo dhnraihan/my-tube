@@ -6,7 +6,12 @@ import { fetchVideos, fetchFeaturedVideos } from '../app/features/videos/videoSl
 
 const HomePage: React.FC = () => {
   const dispatch = useDispatch();
-  const { videos, featuredVideos, isLoading, categories } = useSelector((state: RootState) => state.videos);
+  const { videos: videosData, featuredVideos: featuredVideosData, isLoading, categories: categoriesData } = useSelector((state: RootState) => state.videos);
+  
+  // Ensure data is always arrays
+  const categories = Array.isArray(categoriesData) ? categoriesData : [];
+  const videos = Array.isArray(videosData) ? videosData : [];
+  const featuredVideos = Array.isArray(featuredVideosData) ? featuredVideosData : [];
 
   useEffect(() => {
     dispatch(fetchVideos() as any);

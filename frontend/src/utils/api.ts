@@ -31,12 +31,18 @@ api.interceptors.response.use(
   (error) => {
     // Handle 401 unauthorized errors
     if (error.response?.status === 401) {
+      // Check if the request is for categories endpoint
+      const isCategories = error.config?.url?.includes('/api/categories/');
+      
       // Remove invalid token
       localStorage.removeItem('token');
       localStorage.removeItem('refresh');
       
-      // Redirect to login (you might want to use your routing logic here)
-      window.location.href = '/login';
+      // Only redirect to login for non-categories endpoints
+      if (!isCategories) {
+        // Redirect to login (you might want to use your routing logic here)
+        window.location.href = '/login';
+      }
     }
     
     // Handle network errors
