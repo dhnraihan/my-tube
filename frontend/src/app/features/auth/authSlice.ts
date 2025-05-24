@@ -98,8 +98,10 @@ export const getUserProfile = createAsyncThunk(
       // No need to manually add Authorization header, 
       // it's handled by the axios interceptor
       const response = await api.get('/api/profile/');
+      console.log('Profile API response:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('Error fetching user profile:', error);
       if (error.response && error.response.data) {
         return rejectWithValue(error.response.data);
       }
@@ -181,7 +183,34 @@ const authSlice = createSlice({
       })
       .addCase(getUserProfile.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload;
+        console.log('Profile data received:', action.payload);
+        
+        // If the payload contains the entire user object with profile
+        if (action.payload.user) {
+          state.user = {
+            ...action.payload.user,
+            profile: action.payload
+          };
+        } 
+        // If the payload is just the profile data
+        else if (state.user) {
+          state.user = {
+            ...state.user,
+            profile: action.payload
+          };
+        } 
+        // If user is null and payload is just the profile
+        else {
+          state.user = {
+            id: action.payload.user_id?.toString() || '',
+            username: action.payload.username || '',
+            email: action.payload.email || '',
+            first_name: action.payload.first_name || '',
+            last_name: action.payload.last_name || '',
+            email_verified: action.payload.email_verified || false,
+            profile: action.payload
+          };
+        }
       })
       .addCase(getUserProfile.rejected, (state, action) => {
         state.isLoading = false;

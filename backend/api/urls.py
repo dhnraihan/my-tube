@@ -8,9 +8,9 @@ from rest_framework_simplejwt.views import (
 from . import views
 
 router = DefaultRouter()
-router.register(r'videos', views.VideoViewSet)
-router.register(r'categories', views.CategoryViewSet)
-router.register(r'comments', views.CommentViewSet)
+router.register(r'videos', views.VideoViewSet, basename='video')
+router.register(r'categories', views.CategoryViewSet, basename='category')
+router.register(r'comments', views.CommentViewSet, basename='comment')
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
 
 urlpatterns = [

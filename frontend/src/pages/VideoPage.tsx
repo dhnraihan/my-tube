@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import ReactPlayer from 'react-player';
 import { RootState } from '../app/store';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { 
   fetchVideoById, 
   likeVideo, 
@@ -13,9 +15,36 @@ import {
 
 const VideoPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentVideo, relatedVideos, comments, isLoading } = useSelector((state: RootState) => state.videos);
+  const playerRef = useRef<ReactPlayer>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [played, setPlayed] = useState(0);
+  const [seeking, setSeeking] = useState(false);
+  const [volume, setVolume] = useState(0.8);
+  const [muted, setMuted] = useState(false);
+  
+  const { 
+    currentVideo, 
+    relatedVideos = [], 
+    comments = [], 
+    isLoading, 
+    error: videoError 
+  } = useSelector((state: RootState) => state.videos);
+  
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  
+  // Handle video errors
+  useEffect(() => {
+    if (videoError) {
+      toast.error(videoError);
+      // Redirect to home page if video not found
+      if (videoError.includes('not found')) {
+        setTimeout(() => navigate('/'), 3000);
+      }
+    }
+  }, [videoError, navigate]);
   
   const [comment, setComment] = useState('');
   const [replyText, setReplyText] = useState('');
@@ -34,6 +63,7 @@ const VideoPage: React.FC = () => {
   
   // Format view count
   const formatViews = (views: number) => {
+    if (!views && views !== 0) return '0';
     if (views >= 1000000) {
       return (views / 1000000).toFixed(1) + 'M';
     } else if (views >= 1000) {
@@ -42,14 +72,74 @@ const VideoPage: React.FC = () => {
     return views.toString();
   };
   
+  // Handle player events
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+  
+  const handleProgress = (state: { played: number, playedSeconds: number, loaded: number, loadedSeconds: number }) => {
+    if (!seeking) {
+      setPlayed(state.played);
+    }
+  };
+  
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPlayed(parseFloat(e.target.value));
+  };
+  
+  const handleSeekMouseDown = () => {
+    setSeeking(true);
+  };
+  
+  const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+    setSeeking(false);
+    if (playerRef.current) {
+      playerRef.current.seekTo(parseFloat(e.currentTarget.value));
+    }
+  };
+  
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (newVolume > 0) {
+      setMuted(false);
+    }
+  };
+  
+  const toggleMute = () => {
+    setMuted(!muted);
+  };
+  
+  // Format time in seconds to MM:SS or HH:MM:SS
+  const formatTime = (seconds: number): string => {
+    if (!seconds && seconds !== 0) return '0:00';
+    
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    } else {
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+  };
+  
   // Format date
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
   };
   
   const handleLike = (likeType: 'like' | 'dislike') => {
@@ -188,17 +278,128 @@ const VideoPage: React.FC = () => {
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2">
+      <ToastContainer position="top-right" autoClose={5000} />
+      <div className="lg:col-span-3">
         {/* Video Player */}
-        <div className="video-container mb-4 rounded-lg overflow-hidden">
-          {currentVideo.file ? (
-            <ReactPlayer
-              url={currentVideo.file}
-              width="100%"
-              height="100%"
-              controls
-              playing
-            />
+        <div className="video-container mb-4 rounded-lg overflow-hidden bg-black">
+          {currentVideo?.file ? (
+            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+              <ReactPlayer
+                ref={playerRef}
+                url={currentVideo.file}
+                width="100%"
+                height="100%"
+                playing={isPlaying}
+                volume={muted ? 0 : volume}
+                onProgress={handleProgress}
+                onDuration={setDuration}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onError={(e) => {
+                  console.error('Video playback error:', e);
+                  toast.error('Error playing video. Please try again later.');
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                }}
+                controls={false}
+              />
+              
+              {/* Custom Controls */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                {/* Progress Bar */}
+                <div className="flex items-center mb-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.999999}
+                    step="any"
+                    value={played}
+                    onChange={handleSeekChange}
+                    onMouseDown={handleSeekMouseDown}
+                    onMouseUp={handleSeekMouseUp}
+                    className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${played * 100}%, #4b5563 ${played * 100}%, #4b5563 100%)`
+                    }}
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <button 
+                      onClick={handlePlayPause}
+                      className="text-white hover:text-blue-400 transition-colors"
+                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    
+                    <div className="flex items-center">
+                      <button 
+                        onClick={toggleMute}
+                        className="text-white hover:text-blue-400 transition-colors mr-2"
+                        aria-label={muted ? 'Unmute' : 'Mute'}
+                      >
+                        {muted || volume === 0 ? (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={muted ? 0 : volume}
+                        onChange={handleVolumeChange}
+                        className="w-20 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(muted ? 0 : volume) * 100}%, #4b5563 ${(muted ? 0 : volume) * 100}%, #4b5563 100%)`
+                        }}
+                      />
+                    </div>
+                    
+                    <span className="text-sm text-white">
+                      {formatTime(played * duration)} / {formatTime(duration)}
+                    </span>
+                  </div>
+                  
+                  <button 
+                    className="text-white hover:text-blue-400 transition-colors"
+                    onClick={() => {
+                      // Toggle fullscreen
+                      const element = document.fullscreenElement;
+                      if (!element) {
+                        document.documentElement.requestFullscreen().catch(console.error);
+                      } else {
+                        document.exitFullscreen().catch(console.error);
+                      }
+                    }}
+                    aria-label="Fullscreen"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="w-full h-full bg-gray-800 flex items-center justify-center">
               <p className="text-white">Video not available</p>

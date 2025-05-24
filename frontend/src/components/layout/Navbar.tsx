@@ -14,7 +14,18 @@ const Navbar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, user } = useSelector((state: RootState) => {
+    console.log('User from Redux:', state.auth.user);
+    return state.auth;
+  });
+  
+  // Log the profile picture URL when user changes
+  React.useEffect(() => {
+    if (user) {
+      console.log('User profile:', user.profile);
+      console.log('Profile picture URL:', user.profile?.profile_picture);
+    }
+  }, [user]);
   const { notifications, unreadCount } = useSelector((state: RootState) => state.notifications);
   
   useEffect(() => {
@@ -157,9 +168,17 @@ const Navbar: React.FC = () => {
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className="flex items-center focus:outline-none"
                   >
-                    <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                      {user?.username.charAt(0).toUpperCase()}
-                    </div>
+                    {user?.profile?.profile_picture ? (
+                      <img 
+                        src={user.profile.profile_picture} 
+                        alt={user.username} 
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                        {user?.username?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </button>
                   
                   {/* User dropdown */}
@@ -183,18 +202,19 @@ const Navbar: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div>
+              <div className="flex items-center space-x-2">
                 <Link
                   to="/login"
-                  className="mr-2 px-4 py-2 font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400"
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Login
+                  Sign In
                 </Link>
+                <span className="text-gray-400">|</span>
                 <Link
                   to="/register"
-                  className="px-4 py-2 font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-md transition-colors"
                 >
-                  Sign Up
+                  Create Account
                 </Link>
               </div>
             )}

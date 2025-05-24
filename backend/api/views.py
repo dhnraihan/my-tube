@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 from accounts.models import User, Profile
 from videos.models import Video, Category, Comment, Like, VideoView
@@ -33,14 +35,44 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
 # Video Views
 class VideoViewSet(viewsets.ModelViewSet):
-    queryset = Video.objects.all()
     serializer_class = VideoSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    permission_classes = [IsOwnerOrReadOnly]  # Remove IsAuthenticated to allow public access
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'privacy', 'uploader']
     search_fields = ['title', 'description', 'tags']
     ordering_fields = ['created_at', 'views', 'title']
     lookup_field = 'slug'
+
+    def get_queryset(self):
+        """
+        Return a queryset of videos based on user authentication.
+        - Authenticated users: See all public videos + their own private videos
+        - Unauthenticated users: See only public videos
+        """
+        queryset = Video.objects.all()
+        user = self.request.user
+        
+        if user.is_authenticated:
+            # Show public videos + user's own private videos
+            return queryset.filter(Q(privacy='public') | Q(uploader=user))
+        else:
+            # Show only public videos for unauthenticated users
+            return queryset.filter(privacy='public')
+    
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def featured(self, request):
+        """
+        Returns a list of featured videos.
+        Featured videos are determined by view count and like count.
+        """
+        featured_videos = Video.objects.filter(privacy='public').order_by('-views', '-likes')[:10]
+        page = self.paginate_queryset(featured_videos)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(featured_videos, many=True)
+        return Response(serializer.data)
     
     def get_queryset(self):
         # Return only public videos or user's own videos
@@ -82,9 +114,17 @@ class VideoViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def comments(self, request, slug=None):
+        """
+        Get all top-level comments for a video
+        """
         video = self.get_object()
-        comments = Comment.objects.filter(video=video, parent=None)
-        serializer = CommentSerializer(comments, many=True)
+        comments = Comment.objects.filter(video=video, parent=None).order_by('-created_at')
+        page = self.paginate_queryset(comments)
+        if page is not None:
+            serializer = CommentSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = CommentSerializer(comments, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
@@ -102,26 +142,72 @@ class VideoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 # Category Views
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing categories and their associated videos.
+    Publicly accessible to all users.
+    """
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Make categories publicly accessible
     lookup_field = 'slug'
     
-    @action(detail=True, methods=['get'])
+    def get_queryset(self):
+        """
+        Return all categories ordered by name.
+        """
+        return Category.objects.all().order_by('name')
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
     def videos(self, request, slug=None):
+        """
+        Get all public videos in this category.
+        Supports pagination and filtering by query parameters.
+        """
         category = self.get_object()
-        videos = Video.objects.filter(category=category, privacy='public')
-        serializer = VideoSerializer(videos, many=True)
+        videos = Video.objects.filter(
+            category=category, 
+            privacy='public'
+        ).order_by('-created_at')
+        
+        # Apply pagination
+        page = self.paginate_queryset(videos)
+        if page is not None:
+            serializer = VideoSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = VideoSerializer(videos, many=True, context={'request': request})
         return Response(serializer.data)
 
 # Comment Views
 class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated, IsCommentOwner]
     
+    def get_queryset(self):
+        """
+        Optionally filter comments by video if video_slug is provided in the URL
+        """
+        queryset = Comment.objects.all()
+        video_slug = self.request.query_params.get('video')
+        if video_slug:
+            queryset = queryset.filter(video__slug=video_slug)
+        return queryset
+    
+    def get_serializer_context(self):
+        """
+        Add request to serializer context for URL building
+        """
+        return {'request': self.request}
+    
     def perform_create(self, serializer):
+        """
+        Set the user to the current user when creating a comment
+        """
         comment = serializer.save(user=self.request.user)
         
         # Create notification for video owner if commenter is not the video owner

@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '../../store';
 import api from '../../../utils/api';
 
 // Types
@@ -44,21 +45,91 @@ export interface Category {
   name: string;
   slug: string;
   icon?: string;
+  video_count?: number;
+  description?: string;
 }
 
 interface VideoState {
   videos: Video[];
+  trendingVideos: Video[];
+  userVideos: Video[];
+  subscribedVideos: Video[];
   featuredVideos: Video[];
-  currentVideo: Video | null;
   relatedVideos: Video[];
-  searchResults: Video[];
-  comments: Comment[];
   categories: Category[];
+  searchResults: Video[];
+  searchQuery: string;
   isLoading: boolean;
   error: string | null;
+  currentVideo: Video | null;
+  comments: Comment[];
+  commentStatus: 'idle' | 'loading' | 'succeeded' | 'failed';
+  commentError: string | null;
 }
 
 // Async thunks
+export const fetchTrendingVideos = createAsyncThunk(
+  'videos/fetchTrending',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/api/videos/', {
+        params: {
+          ordering: '-views,-likes',
+          page_size: 20
+        }
+      });
+      return response.data.results || [];
+    } catch (error: any) {
+      console.error('Error fetching trending videos:', error);
+      return rejectWithValue(error.response?.data || 'Failed to fetch trending videos');
+    }
+  }
+);
+
+export const fetchUserVideos = createAsyncThunk(
+  'videos/fetchUserVideos',
+  async (userId: number, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/videos/?uploader=${userId}`);
+      return response.data.results || [];
+    } catch (error: any) {
+      console.error('Error fetching user videos:', error);
+      return rejectWithValue(error.response?.data || 'Failed to fetch user videos');
+    }
+  }
+);
+
+export const fetchSubscribedVideos = createAsyncThunk(
+  'videos/fetchSubscribedVideos',
+  async (userId: number, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/videos/subscriptions/${userId}/`);
+      return response.data.results || [];
+    } catch (error: any) {
+      console.error('Error fetching subscribed videos:', error);
+      return rejectWithValue(error.response?.data || 'Failed to fetch subscribed videos');
+    }
+  }
+);
+
+export const fetchLatestVideos = createAsyncThunk(
+  'videos/fetchLatest',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/api/videos/', {
+        params: {
+          ordering: '-created_at',
+          page_size: 20
+        }
+      });
+      return response.data.results || [];
+    } catch (error: any) {
+      console.error('Error fetching latest videos:', error);
+      return rejectWithValue(error.response?.data || 'Failed to fetch latest videos');
+    }
+  }
+);
+
 export const createCategory = createAsyncThunk(
   'videos/createCategory',
   async (categoryData: { name: string; icon?: string }, { rejectWithValue }) => {
@@ -76,15 +147,34 @@ export const createCategory = createAsyncThunk(
 
 export const fetchVideos = createAsyncThunk(
   'videos/fetchVideos',
-  async (_, { rejectWithValue }) => {
+  async (_, { getState }) => {
     try {
-      const response = await api.get('/api/videos/');
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
+      const state = getState() as RootState;
+      const isAuthenticated = state.auth.isAuthenticated;
+      
+      // Try the main videos endpoint first
+      try {
+        const response = await api.get('/api/videos/');
+        return response.data.results || response.data || [];
+      } catch (mainError: any) {
+        // If we get a 401 and we're not authenticated, try the public endpoint
+        if (!isAuthenticated && mainError.response?.status === 401) {
+          try {
+            const publicResponse = await api.get('/api/videos/public/');
+            return publicResponse.data.results || publicResponse.data || [];
+          } catch (publicError) {
+            console.log('Public videos endpoint not available, returning empty array');
+            return [];
+          }
+        }
+        
+        // For other errors, return empty array to prevent UI breaking
+        console.error('Error fetching videos:', mainError);
+        return [];
       }
-      return rejectWithValue('Failed to fetch videos');
+    } catch (error: any) {
+      console.error('Unexpected error in fetchVideos:', error);
+      return [];
     }
   }
 );
@@ -93,13 +183,27 @@ export const fetchFeaturedVideos = createAsyncThunk(
   'videos/fetchFeaturedVideos',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/videos/featured/');
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
+      // Try the featured videos endpoint first
+      try {
+        const response = await api.get('/api/videos/featured/');
+        return Array.isArray(response.data) ? response.data : [];
+      } catch (featuredError: any) {
+        console.warn('Featured videos endpoint not available, falling back to regular videos');
+        
+        // If featured videos endpoint fails, try to get regular videos instead
+        try {
+          const response = await api.get('/api/videos/');
+          const videos = Array.isArray(response.data) ? response.data : [];
+          // Return first few videos as featured
+          return videos.slice(0, 4);
+        } catch (fallbackError) {
+          console.error('Error fetching fallback videos:', fallbackError);
+          return [];
+        }
       }
-      return rejectWithValue('Failed to fetch featured videos');
+    } catch (error: any) {
+      console.error('Unexpected error in fetchFeaturedVideos:', error);
+      return [];
     }
   }
 );
@@ -144,13 +248,24 @@ export const fetchComments = createAsyncThunk(
   'videos/fetchComments',
   async (slug: string, { rejectWithValue }) => {
     try {
+      // First verify the video exists and is accessible
+      await api.get(`/api/videos/${slug}/`);
+      
+      // Then fetch comments
       const response = await api.get(`/api/videos/${slug}/comments/`);
-      return response.data;
-    } catch (error: any) {
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
+      
+      // Handle both paginated and non-paginated responses
+      if (response.data && response.data.results) {
+        return response.data; // Paginated response
       }
-      return rejectWithValue('Failed to fetch comments');
+      
+      return { results: response.data, count: response.data.length }; // Non-paginated response
+    } catch (error: any) {
+      console.error('Error fetching comments:', error);
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data.detail || error.response.data);
+      }
+      return rejectWithValue('Failed to fetch comments. Please try again.');
     }
   }
 );
@@ -193,15 +308,46 @@ export const likeVideo = createAsyncThunk(
 
 export const addComment = createAsyncThunk(
   'videos/addComment',
-  async ({ slug, content, parent_id = null }: { slug: string; content: string; parent_id?: number | null }, { rejectWithValue }) => {
+  async ({ slug, content, parent_id = null }: { slug: string; content: string; parent_id?: number | null }, { rejectWithValue, dispatch }) => {
     try {
-      const response = await api.post(`/api/videos/${slug}/comments/`, { content, parent_id });
+      // First, check if the video exists and is accessible
+      await api.get(`/api/videos/${slug}/`);
+      
+      // Then post the comment
+      const response = await api.post(`/api/videos/${slug}/comments/`, { 
+        content, 
+        parent_id: parent_id || null 
+      });
+      
+      // Refresh comments after adding a new one
+      await dispatch(fetchComments(slug) as any);
+      
       return response.data;
     } catch (error: any) {
+      console.error('Error adding comment:', error);
       if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
+        return rejectWithValue(error.response.data.detail || error.response.data);
       }
-      return rejectWithValue('Failed to add comment');
+      return rejectWithValue('Failed to add comment. Please try again.');
+    }
+  }
+);
+
+export const fetchVideosByCategory = createAsyncThunk<Video[], string, { rejectValue: any }>(
+  'videos/fetchVideosByCategory',
+  async (categorySlug: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/videos/?category=${categorySlug}`);
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error: any) {
+      console.error('Error fetching videos by category:', error);
+      if (error.response?.data) {
+        return rejectWithValue({
+          status: error.response.status,
+          data: error.response.data
+        });
+      }
+      return rejectWithValue('Failed to fetch category videos');
     }
   }
 );
@@ -211,18 +357,43 @@ export const fetchCategories = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('/api/categories/');
-      return response.data;
+      // Ensure we return an array of categories
+      const categories = Array.isArray(response.data) ? response.data : [];
+      return categories.map(category => ({
+        id: category.id || 0,
+        name: category.name || 'Uncategorized',
+        slug: category.slug || 'uncategorized',
+        icon: category.icon || 'default-icon'
+      }));
     } catch (error: any) {
-      // If it's an auth error (401), handle it silently without redirecting
-      if (error.response?.status === 401) {
-        console.warn('Categories endpoint requires authentication');
-        return rejectWithValue('Authentication required for categories');
+      console.error('Error fetching categories:', error);
+      
+      // Handle different types of errors
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        if (error.response.status === 401) {
+          console.warn('Categories endpoint requires authentication');
+          // Return empty array instead of error to prevent UI issues
+          return [];
+        }
+        
+        // Handle other error statuses
+        if (error.response.data) {
+          return rejectWithValue({
+            status: error.response.status,
+            data: error.response.data
+          });
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('No response received from server');
+      } else {
+        // Something happened in setting up the request
+        console.error('Error setting up request:', error.message);
       }
       
-      if (error.response && error.response.data) {
-        return rejectWithValue(error.response.data);
-      }
-      return rejectWithValue('Failed to fetch categories');
+      // Return empty array as fallback
+      return [];
     }
   }
 );
@@ -245,14 +416,20 @@ export const searchVideos = createAsyncThunk(
 // Initial state
 const initialState: VideoState = {
   videos: [],
+  trendingVideos: [],
+  userVideos: [],
+  subscribedVideos: [],
   featuredVideos: [],
-  currentVideo: null,
   relatedVideos: [],
-  searchResults: [],
-  comments: [],
   categories: [],
+  searchResults: [],
+  searchQuery: '',
   isLoading: false,
   error: null,
+  currentVideo: null,
+  comments: [],
+  commentStatus: 'idle',
+  commentError: null,
 };
 
 // Create the slice
@@ -278,18 +455,42 @@ const videoSlice = createSlice({
       })
       .addCase(fetchVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        // Ensure videos is always an array
-        state.videos = Array.isArray(action.payload) ? action.payload : [];
+        state.videos = action.payload;
+        state.error = null;
       })
       .addCase(fetchVideos.rejected, (state, action) => {
         state.isLoading = false;
-        // Handle the formatted error response
-        const errorMessage = typeof action.payload === 'object' && action.payload !== null
-          ? (action.payload as any).data?.detail || 'Failed to fetch videos'
-          : String(action.payload || 'Failed to fetch videos');
-        state.error = errorMessage;
-        // Set videos to an empty array when the API call fails
-        state.videos = [];
+        state.error = action.payload as string;
+      })
+      
+      // Fetch Trending Videos
+      .addCase(fetchTrendingVideos.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchTrendingVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
+        state.isLoading = false;
+        state.trendingVideos = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchTrendingVideos.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Fetch User Videos
+      .addCase(fetchUserVideos.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
+        state.isLoading = false;
+        state.userVideos = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchUserVideos.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       })
       
       // Fetch Featured Videos
@@ -299,18 +500,12 @@ const videoSlice = createSlice({
       })
       .addCase(fetchFeaturedVideos.fulfilled, (state, action: PayloadAction<Video[]>) => {
         state.isLoading = false;
-        // Ensure featuredVideos is always an array
-        state.featuredVideos = Array.isArray(action.payload) ? action.payload : [];
+        state.featuredVideos = action.payload;
+        state.error = null;
       })
       .addCase(fetchFeaturedVideos.rejected, (state, action) => {
         state.isLoading = false;
-        // Handle the formatted error response
-        const errorMessage = typeof action.payload === 'object' && action.payload !== null
-          ? (action.payload as any).data?.detail || 'Failed to fetch featured videos'
-          : String(action.payload || 'Failed to fetch featured videos');
-        state.error = errorMessage;
-        // Set featuredVideos to an empty array when the API call fails
-        state.featuredVideos = [];
+        state.error = action.payload as string;
       })
       
       // Fetch Video By ID
@@ -384,16 +579,11 @@ const videoSlice = createSlice({
       })
       .addCase(createCategory.fulfilled, (state, action: PayloadAction<Category>) => {
         state.isLoading = false;
-        // Add the new category to the categories array
         state.categories = [action.payload, ...state.categories];
       })
       .addCase(createCategory.rejected, (state, action) => {
         state.isLoading = false;
-        // Handle the formatted error response
-        const errorMessage = typeof action.payload === 'object' && action.payload !== null
-          ? (action.payload as any).detail || 'Failed to create category'
-          : String(action.payload || 'Failed to create category');
-        state.error = errorMessage;
+        state.error = action.payload as string;
       })
       
       // Fetch Categories
@@ -403,18 +593,11 @@ const videoSlice = createSlice({
       })
       .addCase(fetchCategories.fulfilled, (state, action: PayloadAction<Category[]>) => {
         state.isLoading = false;
-        // Ensure categories is always an array
-        state.categories = Array.isArray(action.payload) ? action.payload : [];
+        state.categories = action.payload;
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.isLoading = false;
-        // Handle the formatted error response
-        const errorMessage = typeof action.payload === 'object' && action.payload !== null
-          ? (action.payload as any).data?.detail || 'Failed to fetch categories'
-          : String(action.payload || 'Failed to fetch categories');
-        state.error = errorMessage;
-        // Set categories to an empty array when the API call fails
-        state.categories = [];
+        state.error = action.payload as string;
       })
       
       // Search Videos

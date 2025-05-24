@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './app/store';
 import { getUserProfile } from './app/features/auth/authSlice';
-import { fetchCategories } from './app/features/videos/videoSlice';
+import { fetchCategories, fetchComments } from './app/features/videos/videoSlice';
 import { fetchUserProfile } from './app/features/profile/profileSlice';
 
 // Layout
@@ -17,6 +17,12 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import UploadPage from './pages/UploadPage';
 import SearchPage from './pages/SearchPage';
+import CategoriesPage from './pages/CategoriesPage';
+import CategoryVideosPage from './pages/CategoryVideosPage';
+import TrendingPage from 'pages/TrendingPage';
+import LibraryPage from 'pages/LibraryPage';
+import SubscriptionsPage from 'pages/SubscriptionsPage';
+import LatestPage from 'pages/LatestPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Auth Guard for protected routes
@@ -59,8 +65,22 @@ function App() {
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+        <Route path="category/:slug" element={<CategoryVideosPage />} />
+        <Route path="trending" element={<TrendingPage />} />
+        <Route path="latest" element={<LatestPage />} />
         
         {/* Protected routes */}
+        <Route path="subscriptions" element={
+          <ProtectedRoute>
+            <SubscriptionsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="library" element={
+          <ProtectedRoute>
+            <LibraryPage />
+          </ProtectedRoute>
+        } />
         <Route path="profile" element={
           <ProtectedRoute>
             <ProfilePage />
