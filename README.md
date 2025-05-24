@@ -57,7 +57,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/dhnraihan/mytube.git
+   git clone https://github.com/dhnraihan/my-tube.git
    cd mytube/backend
    ```
 
