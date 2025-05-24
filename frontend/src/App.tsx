@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './app/store';
 import { getUserProfile } from './app/features/auth/authSlice';
 import { fetchCategories } from './app/features/videos/videoSlice';
+import { fetchUserProfile } from './app/features/profile/profileSlice';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -37,6 +38,7 @@ function App() {
     // If user is authenticated, fetch user profile data
     if (isAuthenticated) {
       dispatch(getUserProfile() as any);
+      dispatch(fetchUserProfile() as any);
       // Fetch categories after authentication is confirmed
       dispatch(fetchCategories() as any);
     }
@@ -67,6 +69,11 @@ function App() {
         <Route path="upload" element={
           <ProtectedRoute>
             <UploadPage />
+          </ProtectedRoute>
+        } />
+        <Route path="profile/edit" element={
+          <ProtectedRoute>
+            <ProfilePage editMode={true} />
           </ProtectedRoute>
         } />
         

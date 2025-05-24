@@ -59,6 +59,21 @@ interface VideoState {
 }
 
 // Async thunks
+export const createCategory = createAsyncThunk(
+  'videos/createCategory',
+  async (categoryData: { name: string; icon?: string }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/api/categories/', categoryData);
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.data) {
+        return rejectWithValue(error.response.data);
+      }
+      return rejectWithValue('Failed to create category');
+    }
+  }
+);
+
 export const fetchVideos = createAsyncThunk(
   'videos/fetchVideos',
   async (_, { rejectWithValue }) => {
@@ -268,7 +283,11 @@ const videoSlice = createSlice({
       })
       .addCase(fetchVideos.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        // Handle the formatted error response
+        const errorMessage = typeof action.payload === 'object' && action.payload !== null
+          ? (action.payload as any).data?.detail || 'Failed to fetch videos'
+          : String(action.payload || 'Failed to fetch videos');
+        state.error = errorMessage;
         // Set videos to an empty array when the API call fails
         state.videos = [];
       })
@@ -285,7 +304,11 @@ const videoSlice = createSlice({
       })
       .addCase(fetchFeaturedVideos.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        // Handle the formatted error response
+        const errorMessage = typeof action.payload === 'object' && action.payload !== null
+          ? (action.payload as any).data?.detail || 'Failed to fetch featured videos'
+          : String(action.payload || 'Failed to fetch featured videos');
+        state.error = errorMessage;
         // Set featuredVideos to an empty array when the API call fails
         state.featuredVideos = [];
       })
@@ -354,6 +377,25 @@ const videoSlice = createSlice({
         }
       })
       
+      // Create Category
+      .addCase(createCategory.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createCategory.fulfilled, (state, action: PayloadAction<Category>) => {
+        state.isLoading = false;
+        // Add the new category to the categories array
+        state.categories = [action.payload, ...state.categories];
+      })
+      .addCase(createCategory.rejected, (state, action) => {
+        state.isLoading = false;
+        // Handle the formatted error response
+        const errorMessage = typeof action.payload === 'object' && action.payload !== null
+          ? (action.payload as any).detail || 'Failed to create category'
+          : String(action.payload || 'Failed to create category');
+        state.error = errorMessage;
+      })
+      
       // Fetch Categories
       .addCase(fetchCategories.pending, (state) => {
         state.isLoading = true;
@@ -366,9 +408,13 @@ const videoSlice = createSlice({
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.isLoading = false;
+        // Handle the formatted error response
+        const errorMessage = typeof action.payload === 'object' && action.payload !== null
+          ? (action.payload as any).data?.detail || 'Failed to fetch categories'
+          : String(action.payload || 'Failed to fetch categories');
+        state.error = errorMessage;
         // Set categories to an empty array when the API call fails
         state.categories = [];
-        state.error = action.payload as string;
       })
       
       // Search Videos

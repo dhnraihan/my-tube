@@ -2,6 +2,15 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '../../../utils/api'; // Import the configured axios instance
 
 // Types (keeping the same as before)
+interface Profile {
+  id: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  date_of_birth?: string;
+  profile_picture?: string;
+}
+
 interface User {
   id: string;
   username: string;
@@ -9,6 +18,7 @@ interface User {
   first_name: string;
   last_name: string;
   email_verified: boolean;
+  profile?: Profile;
 }
 
 interface AuthState {

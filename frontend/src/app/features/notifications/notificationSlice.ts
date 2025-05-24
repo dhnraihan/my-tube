@@ -196,7 +196,12 @@ const notificationSlice = createSlice({
       })
       .addCase(fetchNotifications.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        // Handle the formatted error response
+        const errorMessage = typeof action.payload === 'object' && action.payload !== null
+          ? (action.payload as any).data?.detail || 'Failed to fetch notifications'
+          : String(action.payload || 'Failed to fetch notifications');
+        state.error = errorMessage;
+        state.notifications = [];
       })
       // Mark as read
       .addCase(markAsRead.pending, (state) => {

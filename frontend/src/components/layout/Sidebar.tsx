@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../app/store';
+import AddCategory from '../categories/AddCategory';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
@@ -52,19 +53,32 @@ const Sidebar: React.FC = () => {
           <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
           
           {/* Categories */}
-          <div className="text-gray-500 dark:text-gray-400 uppercase text-sm font-bold ml-2 mb-2">
-            Categories
-          </div>
-          {categories.map((category) => (
-            <li key={category.id}>
-              <Link
-                to={`/category/${category.slug}`}
-                className="flex items-center p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <span>{category.name}</span>
-              </Link>
-            </li>
-          ))}
+          <li>
+            <div className="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+              <span className="flex-1 ml-3 whitespace-nowrap">Categories</span>
+            </div>
+            <ul className="ml-4 mt-1 space-y-1">
+              {categories.map((category) => (
+                <li key={category.id}>
+                  <Link
+                    to={`/category/${category.slug}`}
+                    className="flex items-center p-2 text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 group"
+                  >
+                    {category.icon && (
+                      <span className="mr-2">
+                        <i className={category.icon}></i>
+                      </span>
+                    )}
+                    <span className="text-sm">{category.name}</span>
+                  </Link>
+                </li>
+              ))}
+              {/* Add Category Button */}
+              <li className="mt-2">
+                <AddCategory />
+              </li>
+            </ul>
+          </li>
           
           {/* Divider for Bangla */}
           <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>

@@ -9,13 +9,19 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and handle FormData
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Remove Content-Type header for FormData to let the browser set it with the correct boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -43,14 +49,41 @@ api.interceptors.response.use(
         // Redirect to login (you might want to use your routing logic here)
         window.location.href = '/login';
       }
+      
+      // Return a properly formatted error response
+      return Promise.reject({
+        message: 'Unauthorized',
+        status: 401,
+        data: error.response?.data || { detail: 'Authentication required' }
+      });
     }
     
     // Handle network errors
     if (!error.response) {
       console.error('Network Error:', error.message);
+      return Promise.reject({
+        message: 'Network Error',
+        status: 0,
+        data: { detail: 'Unable to connect to the server. Please check your internet connection.' }
+      });
     }
     
-    return Promise.reject(error);
+    // Handle other types of errors
+    const status = error.response.status;
+    let message = 'An error occurred';
+    
+    if (status >= 500) {
+      message = 'Server error';
+    } else if (status >= 400) {
+      message = 'Request error';
+    }
+    
+    // Return a properly formatted error response
+    return Promise.reject({
+      message,
+      status,
+      data: error.response.data || { detail: message }
+    });
   }
 );
 
