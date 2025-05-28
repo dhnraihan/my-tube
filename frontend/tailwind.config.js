@@ -2,29 +2,37 @@
 module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
-    "./public/index.html"
   ],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
         primary: {
-          light: '#4B5563',
-          DEFAULT: '#1F2937',
-          dark: '#111827',
+          DEFAULT: '#FF0000',
+          dark: '#CC0000',
         },
-        secondary: {
-          light: '#BFDBFE',
-          DEFAULT: '#3B82F6',
-          dark: '#1E40AF',
+        background: {
+          light: '#FFFFFF',
+          dark: '#121212',
         },
+        text: {
+          light: '#1F2937',
+          dark: '#F3F4F6',
+        },
+        card: {
+          light: '#FFFFFF',
+          dark: '#1F2937',
+        },
+        border: {
+          light: '#E5E7EB',
+          dark: '#374151',
+        },
+        hover: {
+          light: '#F3F4F6',
+          dark: '#374151',
+        }
       },
     },
   },
-  plugins: [
-    require('daisyui')
-  ],
-  daisyui: {
-    themes: ["light", "dark"],
-  },
+  plugins: [],
 }

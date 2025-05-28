@@ -5,6 +5,7 @@ import { logout } from '../../app/features/auth/authSlice';
 import { RootState } from '../../app/store';
 import { fetchNotifications } from '../../app/features/notifications/notificationSlice';
 import { searchVideos } from '../../app/features/videos/videoSlice';
+import ThemeToggle from '../ThemeToggle';
 
 const Navbar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +81,11 @@ const Navbar: React.FC = () => {
           </div>
           
           <div className="flex items-center">
+            {/* Theme Toggle */}
+            <div className="mr-4">
+              <ThemeToggle />
+            </div>
+            
             {isAuthenticated ? (
               <>
                 {/* Upload button */}
