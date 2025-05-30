@@ -51,13 +51,15 @@ const Sidebar: React.FC = () => {
           ))}
           
           {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+          <li>
+            <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+          </li>
           
           {/* Categories */}
           <li>
-            <div className="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
-              <span className="flex-1 ml-3 whitespace-nowrap">Categories</span>
-            </div>
+            <span className="flex items-center p-2 text-gray-900 rounded-lg dark:text-white">
+              Categories
+            </span>
             <ul className="ml-4 mt-1 space-y-1">
               {categories.map((category) => (
                 <li key={category.id}>
@@ -74,8 +76,7 @@ const Sidebar: React.FC = () => {
                   </Link>
                 </li>
               ))}
-              {/* Add Category Button */}
-              <li className="mt-2">
+              <li>
                 <AddCategory />
               </li>
             </ul>

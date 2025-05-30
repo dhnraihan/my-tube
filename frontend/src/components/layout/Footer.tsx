@@ -69,7 +69,11 @@ const Footer: React.FC = () => {
           {/* Language selector */}
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Language</h2>
-            <select className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+            <select 
+              className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+              aria-label="Select language"
+              title="Language selector"
+            >
               <option value="en">English</option>
               <option value="bn">বাংলা (Bangla)</option>
             </select>
