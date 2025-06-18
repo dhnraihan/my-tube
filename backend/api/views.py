@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Count
 from rest_framework import viewsets, generics, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -43,21 +43,21 @@ class VideoViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'views', 'title']
     lookup_field = 'slug'
 
-    def get_queryset(self):
-        """
-        Return a queryset of videos based on user authentication.
-        - Authenticated users: See all public videos + their own private videos
-        - Unauthenticated users: See only public videos
-        """
-        queryset = Video.objects.all()
-        user = self.request.user
+    # def get_queryset(self):
+    #     """
+    #     Return a queryset of videos based on user authentication.
+    #     - Authenticated users: See all public videos + their own private videos
+    #     - Unauthenticated users: See only public videos
+    #     """
+    #     queryset = Video.objects.all()
+    #     user = self.request.user
         
-        if user.is_authenticated:
-            # Show public videos + user's own private videos
-            return queryset.filter(Q(privacy='public') | Q(uploader=user))
-        else:
-            # Show only public videos for unauthenticated users
-            return queryset.filter(privacy='public')
+    #     if user.is_authenticated:
+    #         # Show public videos + user's own private videos
+    #         return queryset.filter(Q(privacy='public') | Q(uploader=user))
+    #     else:
+    #         # Show only public videos for unauthenticated users
+    #         return queryset.filter(privacy='public')
     
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def featured(self, request):
@@ -65,7 +65,12 @@ class VideoViewSet(viewsets.ModelViewSet):
         Returns a list of featured videos.
         Featured videos are determined by view count and like count.
         """
-        featured_videos = Video.objects.filter(privacy='public').order_by('-views', '-likes')[:10]
+        featured_videos = Video.objects.filter(
+            privacy='public'
+        ).annotate(
+            num_likes=Count('likes', filter=Q(likes__like_type='like'))
+        ).order_by('-views', '-num_likes')[:10]
+
         page = self.paginate_queryset(featured_videos)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -87,7 +92,7 @@ class VideoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(uploader=self.request.user)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
     def view(self, request, slug=None):
         video = self.get_object()
         
